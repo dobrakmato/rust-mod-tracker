@@ -1,0 +1,11 @@
+[package]
+name = "mod_tracker"
+version = "0.1.0"
+authors = ["Matej <dobrakmato@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+clap = "2.33.0"
+cpal = "0.9.0"
+ghakuf = "0.5.3"
+device_query = "0.1.3"
