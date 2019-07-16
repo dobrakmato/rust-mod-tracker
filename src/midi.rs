@@ -1,211 +1,265 @@
 use ghakuf::messages::*;
 use ghakuf::reader::*;
 use std::path;
+use std::path::Path;
+use ghakuf::formats::Format;
+use std::slice::Iter;
+use std::iter::Peekable;
 
-enum Letter { C, CSharp, D, E, F, G, A, H }
-struct Note(u8);
+pub fn note2freq(note: Note) -> f64 {
+    return 440.0 * 2.0f64.powf((note as f64 - 69.0) / 12.0);
+}
 
-impl Note {
-    const C4: Note = Note(8);
+#[derive(Debug)]
+pub enum GMFamily {
+    Piano,
+    ChromaticPercussion,
+    Organ,
+    Guitar,
+    Bass,
+    Strings,
+    Ensemble,
+    Brass,
+    Reed,
+    Pipe,
+    SynthLead,
+    SynthPad,
+    SynthEffects,
+    Ethnic,
+    Percussive,
+    SoundEffects,
+}
 
-    fn octave(&self, octave: i8) -> Self {
-        return Note((self.0 as i8 + 12 * octave) as u8)
+#[derive(Debug)]
+pub struct GMInstrument {
+    family: GMFamily,
+    program_number: u8,
+}
+
+impl GMInstrument {
+    fn new(program_number: u8) -> Self {
+        GMInstrument {
+            program_number,
+            family: match program_number {
+                0...7 => GMFamily::Piano,
+                8...15 => GMFamily::ChromaticPercussion,
+                16...23 => GMFamily::Organ,
+                14...31 => GMFamily::Guitar,
+                32...39 => GMFamily::Bass,
+                40...47 => GMFamily::Strings,
+                48...55 => GMFamily::Ensemble,
+                56...63 => GMFamily::Brass,
+                64...71 => GMFamily::Reed,
+                72...79 => GMFamily::Pipe,
+                80...88 => GMFamily::SynthLead,
+                88...95 => GMFamily::SynthPad,
+                96...103 => GMFamily::SynthEffects,
+                104...111 => GMFamily::Ethnic,
+                112...119 => GMFamily::Percussive,
+                120...127 => GMFamily::SoundEffects,
+                _ => panic!("invalid program number {}", program_number)
+            },
+        }
     }
 }
 
-
-fn test() {
-    let note = Note::C4;
-    let c5 = note.octave(1);
-    let c3 = note.octave(-1);
+#[derive(Debug)]
+pub struct Midi {
+    pub tracks: Vec<Track>,
+    pub time_division: u16,
+    pub mpqn: u128,
+    pub tick_length: f64,
+    pub total_time: f64,
+    pub name: String,
+    pub format: Format,
 }
 
-pub const MIDI_NOTES: [f32; 128] = [
-    8.176, 8.662, 9.177, 9.723, 10.301, 10.913, 11.562, 12.250, 12.978, 13.750, 14.568,
-    15.434, 16.352, 17.324, 18.354, 19.445, 20.601, 21.826, 23.124, 24.499, 25.956,
-    27.500, 29.135, 30.867, 32.703, 34.648, 36.708, 38.890, 41.203, 43.653, 46.249,
-    48.999, 51.913, 55.000, 58.270, 61.735, 65.406, 69.295, 73.416, 77.781, 82.406,
-    87.307, 92.499, 97.998, 103.82, 110.00, 116.54, 123.47, 130.81, 138.59, 146.83,
-    155.56, 164.81, 174.61, 184.99, 195.99, 207.65, 220.00, 233.08, 246.94, 261.63,
-    277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 391.99, 415.31, 440.00, 466.16,
-    493.88, 523.25, 554.37, 587.33, 622.25, 659.26, 698.46, 739.99, 783.99, 830.61,
-    880.00, 932.32, 987.77, 1046.5, 1108.7, 1174.7, 1244.5, 1318.5, 1396.9, 1480.0,
-    1568.0, 1661.2, 1760.0, 1864.7, 1975.5, 2093.0, 2217.5, 2349.3, 2489.0, 2637.0,
-    2793.8, 2960.0, 3136.0, 3322.4, 3520.0, 3729.3, 3951.1, 4186.0, 4434.9, 4698.6,
-    4978.0, 5274.0, 5587.7, 5919.9, 6271.9, 6644.9, 7040.0, 7458.6, 7902.1, 8372.0,
-    8869.8, 9397.3, 9956.1, 10548.1, 11175.3, 11839.8, 12543.9
-];
+impl Midi {
+    pub fn new(name: String) -> Self {
+        Midi {
+            format: Format::Unknown,
+            mpqn: 500000,
+            tick_length: 0.0,
+            total_time: 0.0,
+            time_division: 0,
+            tracks: vec![],
+            name,
+        }
+    }
+}
+
+pub type Channel = u8;
+pub type Note = u8;
+pub type Velocity = u8;
 
 #[derive(Debug)]
-pub enum EventKind {
-    NoteOn(f32, u8),
-    NoteOff(f32),
+pub enum Kind {
+    NoteOn {
+        ch: Channel,
+        note: Note,
+        velocity: Velocity,
+    },
+    NoteOff {
+        ch: Channel,
+        note: Note,
+    },
+    Instrument(GMInstrument),
 }
 
 #[derive(Debug)]
-pub struct TrackEvent {
-    pub kind: EventKind,
-    pub time: u128,
+pub struct Event {
+    pub kind: Kind,
+    pub time: f64,
 }
 
 #[derive(Debug)]
 pub struct Track {
-    pub events: Vec<TrackEvent>,
-    pub idx: u8,
-    pub name: String,
+    name: Option<String>,
+    id: usize,
+    pub events: Vec<Event>,
 }
 
-#[derive(Debug)]
-pub struct Song {
-    pub tracks: Vec<Track>,
-    pub bpm: u8,
+struct MidiReader {
+    midi: Midi
 }
 
-impl Song {
-    pub fn new() -> Self {
-        return Song { tracks: vec![], bpm: 120 };
+impl Handler for MidiReader {
+    fn header(&mut self, format: u16, tracks: u16, time_division: u16) {
+        println!("name={} format={} tracks={} time_division={}", self.midi.name, format, tracks, time_division);
+
+        self.midi.time_division = time_division; // ppqn
+        self.midi.tick_length = self.midi.mpqn as f64 / self.midi.time_division as f64;
+        self.midi.format = Format::new(format);
+
+        // If bit 15 of <time_division> is a one, delta times in a file correspond to
+        // subdivisions of a second, in a way consistent with SMPTE and MIDI Time Code.
+        if time_division & 0x8000 == 0x8000 {
+            eprintln!("SMPTE not supported!");
+        }
+
+        // the file contains one or more sequentially independent single-track patterns
+        if format == 2 {
+            eprintln!("Format 2 Midi files are not supported!");
+        }
     }
 
-    pub fn remove_events(&mut self, lt_micros: u128) -> Vec<(u8, TrackEvent)> {
-        let v = self.tracks.iter_mut().enumerate().flat_map(|(idx, track)| {
-            track.events.drain_filter(|x| x.time < lt_micros).map(move |ev| {
-                (idx as u8, ev)
-            })
-        }).collect();
-
-        return v;
-    }
-}
-
-struct MidiDecoder {
-    song: Song,
-    current_track_events: Vec<TrackEvent>,
-    current_track_idx: usize,
-    current_track_name: String,
-
-    total_time: u128,
-    mpqn: [u128; 128],
-    time_base: u128,
-    first_track: bool,
-}
-
-impl Handler for MidiDecoder {
-    fn header(&mut self, format: u16, track: u16, time_base: u16) {
-        println!("header {} {} {}", format, track, time_base);
-        self.time_base = time_base as u128;
-    }
+    /// Fired when meta event has found.
     fn meta_event(&mut self, delta_time: u32, event: &MetaEvent, data: &Vec<u8>) {
         match event {
-            MetaEvent::SequenceOrTrackName => {
-                self.current_track_name = String::from_utf8_lossy(&data).to_string();
-            }
+            MetaEvent::SequenceOrTrackName => self.midi.tracks.last_mut().unwrap().name = Some(String::from_utf8_lossy(data).to_string()),
             MetaEvent::SetTempo => {
+                // todo: tracks can change tempo during playing multiple times
+
                 let mpqn = ((data[0] as u64) << 16 | (data[1] as u64) << 8 | data[2] as u64) as u128;
+                let bpm = 60_000_000 / mpqn;
 
-                for i in self.current_track_idx..128 {
-                    self.mpqn[i] = mpqn;
-                }
+                self.midi.mpqn = mpqn;
+                self.midi.tick_length = self.midi.mpqn as f64 / self.midi.time_division as f64;
 
-                let bpm = 60_000_000 / self.mpqn[self.current_track_idx];
-                self.song.bpm = bpm as u8;
-
-                println!("tempo ({}) mpqn={} bpm={}", self.current_track_idx, self.mpqn[self.current_track_idx], bpm);
-                self.current_track_idx += 1;
+                println!("set_tempo {} {}bpm", delta_time, bpm)
             }
-            MetaEvent::TimeSignature => {
-                println!("{} {:?}", event, data)
-            }
-            MetaEvent::EndOfTrack => {}
-            _ => println!("{} {:?}", event, data)
+            MetaEvent::SMTPEOffset => eprintln!("SMTPEOffset is not supported!"),
+
+            MetaEvent::CuePoint => {} /* ignored */
+            MetaEvent::Lyric => {} /* ignored */
+            MetaEvent::Marker => {} /* ignored */
+            MetaEvent::InstrumentName => {} /* ignored */
+            MetaEvent::MIDIChannelPrefix => {} /* used only with instrument name, ignored */
+            MetaEvent::TextEvent => {} /* ignored */
+            MetaEvent::CopyrightNotice => {} /* ignored */
+            MetaEvent::SequenceNumber => {} /* ignored */
+            MetaEvent::SequencerSpecificMetaEvent => {} /* ignored */
+            MetaEvent::KeySignature => {} /* ignored */
+            MetaEvent::TimeSignature => {} /* ignored */
+            MetaEvent::EndOfTrack => {} /* silent */
+            MetaEvent::Unknown { event_type } => {} /* silent */
         }
     }
+
+    /// Fired when MIDI event has found.
     fn midi_event(&mut self, delta_time: u32, event: &MidiEvent) {
-        let tick = self.mpqn[self.current_track_idx] as f32 / self.time_base as f32;
-        let tick = tick as f32;
+        self.midi.total_time += (delta_time as f64 * self.midi.tick_length);
+        let track = self.midi.tracks.last_mut().unwrap();
 
-        self.total_time += (delta_time as f32 * tick) as u128;
-
-        let e = match event {
-            MidiEvent::NoteOff { note, velocity, ch } => {
-                if *ch == 9u8 { None } else {
-                    Some(TrackEvent {
-                        time: self.total_time,
-                        kind: EventKind::NoteOff(MIDI_NOTES[*note as usize]),
-                    })
-                }
+        match event {
+            MidiEvent::NoteOff { ch, note, velocity } | MidiEvent::NoteOn { ch, note, velocity: velocity @ 0 } => {
+                track.events.push(Event {
+                    time: self.midi.total_time,
+                    kind: Kind::NoteOff { note: *note, ch: *ch },
+                })
             }
-            MidiEvent::NoteOn { note, velocity, ch } => {
-                if *ch == 9u8 { None } else {
-                    Some(TrackEvent {
-                        time: self.total_time,
-                        kind: if *velocity == 0u8 { EventKind::NoteOff(MIDI_NOTES[*note as usize]) } else { EventKind::NoteOn(MIDI_NOTES[*note as usize], *velocity) },
-                    })
-                }
+            MidiEvent::NoteOn { ch, note, velocity } => {
+                track.events.push(Event {
+                    time: self.midi.total_time,
+                    kind: Kind::NoteOn {
+                        ch: *ch,
+                        note: *note,
+                        velocity: *velocity,
+                    },
+                })
             }
             MidiEvent::ProgramChange { ch, program } => {
-                println!("channel {} changed program to {}", ch, program);
-                None
+                track.events.push(Event {
+                    time: self.midi.total_time,
+                    kind: Kind::Instrument(GMInstrument::new(*program)),
+                })
             }
-            MidiEvent::ControlChange { ch, control, data } => {
-                println!("channel {} control change {} = {}", ch, control, data);
-                None
-            }
-            MidiEvent::PolyphonicKeyPressure { ch, note, velocity } => {
-                println!("channel {} aftertouch note {} = {}", ch, note, velocity);
-                None
-            }
-            MidiEvent::PitchBendChange { ch, data } => {
-                println!("channel {} pitch bend {}", ch, data);
-                None
-            }
-            MidiEvent::ChannelPressure { ch, pressure } => {
-                println!("channel {} aftertouch all notes = {}", ch, pressure);
-                None
-            }
-            _ => None
-        };
-        if let Some(t) = e {
-            self.current_track_events.push(t);
+            MidiEvent::ControlChange { ch, control, data } => {}
+            MidiEvent::PitchBendChange { ch, data } => {}
+            MidiEvent::ChannelPressure { ch, pressure } => {} /* unsupported */
+            MidiEvent::PolyphonicKeyPressure { ch, note, velocity } => {} /* unsupported */
+            MidiEvent::Unknown { .. } => {} /* silent */
         }
     }
-    fn sys_ex_event(&mut self, delta_time: u32, event: &SysExEvent, data: &Vec<u8>) {
-        println!("{}", event);
-    }
-    fn track_change(&mut self) {
-        self.total_time = 0;
-        if self.first_track {
-            self.current_track_idx = 0;
-        }
-        self.current_track_idx += 1;
 
-        if self.current_track_events.len() != 0 {
-            let idx = self.song.tracks.len() as u8;
-            let track = Track {
-                idx,
-                events: std::mem::replace(&mut self.current_track_events, vec![]),
-                name: std::mem::replace(&mut self.current_track_name, format!("track #{}", idx)),
-            };
-            self.song.tracks.push(track);
-        }
+    /// Fired when track has changed.
+    fn track_change(&mut self) {
+        self.midi.total_time = 0.0;
+        self.midi.tracks.push(Track {
+            name: None,
+            id: self.midi.tracks.len(),
+            events: vec![],
+        })
     }
 }
 
-pub fn load_midi(path: &str) -> Song {
-    let path = path::Path::new(path);
-    let mut handler = MidiDecoder {
-        song: Song::new(),
-        current_track_events: vec![],
-        total_time: 0,
-        mpqn: [500000; 128],
-        time_base: 0,
-        current_track_idx: 0,
-        current_track_name: "track #0".to_string(),
-        first_track: true,
-    };
+pub fn load_midi(path: &Path) -> Midi {
+    let mut handler = MidiReader { midi: Midi::new(path.file_name().unwrap().to_str().unwrap().to_owned()) };
     let mut reader = Reader::new(&mut handler, &path).unwrap();
     let _ = reader.read();
-
-    handler.track_change();
-
-    return handler.song;
+    return handler.midi;
 }
+
+pub struct Player<'a> {
+    iterators: Vec<Peekable<Iter<'a, Event>>>
+}
+
+impl<'a> Player<'a> {
+    pub fn new(midi: &'a Midi) -> Self {
+        Player {
+            iterators: midi.tracks.iter().map(|t| t.events.iter().peekable()).collect(),
+        }
+    }
+
+    pub fn get_events(&mut self, time_micros: f64) -> Vec<&Event> {
+        let mut result = vec![];
+
+        for x in self.iterators.iter_mut() {
+            let mut should_play = {
+                let mut last = x.peek();
+                last.is_some() && last.unwrap().time <= time_micros
+            };
+
+            while should_play {
+                result.push(x.next().unwrap());
+                should_play = {
+                    let mut last = x.peek();
+                    last.is_some() && last.unwrap().time <= time_micros
+                };
+            }
+        }
+
+        return result;
+    }
+}
+

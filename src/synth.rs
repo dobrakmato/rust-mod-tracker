@@ -1,173 +1,115 @@
-use crate::osc::{SquareOsc, DetunedSaw, Signal};
-use cpal::SampleRate;
+use crate::env::EnvelopeState::{Attack, Sustain, Off, Decay, Release};
+use crate::osc::{Osc, Shape};
+use crate::midi::note2freq;
+use crate::env::Envelope;
+use crate::filter::Mode;
 
-#[derive(Copy, Clone)]
-struct ADSRState {
-    current_time: f32,
-    note_off_time: f32,
-    note_on: bool,
-}
-
-impl ADSRState {
-    fn new() -> Self {
-        return ADSRState {
-            current_time: 0.0,
-            note_off_time: 0.0,
-            note_on: false,
-        };
-    }
-
-    fn note_on(&mut self) {
-        self.current_time = 0.0;
-        self.note_off_time = 0.0;
-        self.note_on = true;
-    }
+pub struct Preset {
+    waveform: Shape,
+    attack: f64,
+    decay: f64,
+    sustain: f64,
+    release: f64,
+    filter_mode: Mode,
+    filter_cutoff: f64,
+    filter_resonance: f64,
+    filter_attack: f64,
+    filter_decay: f64,
+    filter_sustain: f64,
+    filter_release: f64,
+    filter_evn_amount: f64,
 }
 
 #[derive(Copy, Clone)]
-pub struct ADSR {
-    pub attack: f32,
-    pub decay: f32,
-    pub sustain: f32,
-    pub release: f32,
-    state: ADSRState,
+pub struct Voice {
+    pub osc: Osc,
+    pub env: Envelope,
+    pub velocity: f64,
+    pub note: u8,
+    pub is_active: bool,
 }
 
-impl ADSR {
-    pub fn new(attack: f32, decay: f32, sustain: f32, release: f32) -> Self {
-        ADSR {
-            attack,
-            decay,
-            sustain,
-            release,
-            state: ADSRState::new(),
+impl Voice {
+    fn new(sample_rate: f64) -> Self {
+        Voice {
+            osc: Osc::new(sample_rate),
+            env: Envelope::new(sample_rate),
+            velocity: 1.0,
+            note: 0,
+            is_active: false,
         }
     }
 
-    pub fn note_on(&mut self) {
-        self.state.note_on();
-    }
+    pub fn next(&mut self) -> f64 {
+        if self.env.state() == Off { self.is_active = false; }
 
-    pub fn note_off(&mut self) {
-        self.state.note_on = false;
-    }
-
-    pub fn is_silent(&self) -> bool {
-        return self.state.note_off_time >= self.release;
-    }
-
-    pub fn step(&mut self, time_to_add: f32) -> f32 {
-        if self.state.note_on {
-            self.state.current_time += time_to_add;
-
-            // we in attack
-            if self.state.current_time < self.attack {
-                return (self.state.current_time / self.attack).min(1.0);
-            }
-
-            // we in decay
-            if self.state.current_time < self.decay + self.attack {
-                let f = (self.state.current_time - self.attack) / self.decay;
-                return (1.0 - f + self.sustain).min(1.0);
-            }
-
-            // we are in sustain
-            return self.sustain.min(1.0);
-        } else {
-            self.state.note_off_time += time_to_add;
-
-            // we in release
-            let inv = 1.0 / self.release;
-            return ((self.release - self.state.note_off_time) * inv * self.sustain).max(0.0);
-        }
+        self.osc.next() * self.env.next()
     }
 }
 
-pub trait Playable {
-    type Item;
-    fn note_on(&mut self, hz: f32, velocity: u8);
-    fn note_off(&mut self, hz: f32);
-    fn playing(&self) -> usize;
-    fn max_voices(&self) -> usize;
-    fn next(&mut self) -> Option<Self::Item>;
+pub struct Voices {
+    voices: Vec<Voice>
 }
 
-pub struct Synth<T> {
-    sample_rate: u32,
-    voices: [T; 24],
-    velocities: [u8; 24],
-    adsr: [ADSR; 24],
-    playing: [bool; 24],
-    releasing: [bool; 24],
-}
-
-impl<T> Synth<T> where T: Signal + Copy {
-    pub fn new(sample_rate: SampleRate, adsr: ADSR, voice: T) -> Self {
-        Synth {
-            sample_rate: sample_rate.0,
-            voices: [voice; 24],
-            velocities: [0; 24],
-            adsr: [adsr; 24],
-            playing: [false; 24],
-            releasing: [false; 24],
-        }
+impl Voices {
+    fn new(sample_rate: f64, polyphony: usize) -> Self {
+        Voices { voices: vec![Voice::new(sample_rate); polyphony] }
     }
-}
 
-impl<T> Playable for Synth<T> where T: Signal {
-    type Item = f32;
-
-    fn note_on(&mut self, hz: f32, velocity: u8) {
-        let mut idx = 0;
-        for i in 0..self.voices.len() {
-            if !self.playing[i] {
-                idx = i;
+    pub fn note_on(&mut self, note: u8, velocity: u8) {
+        for v in self.voices.iter_mut() {
+            if !v.is_active {
+                v.is_active = true;
+                v.note = note;
+                v.velocity = velocity as f64 / 127.0;
+                v.osc.frequency(note2freq(note));
+                v.env.enter_state(Attack);
                 break;
             }
         }
-
-        self.adsr[idx].note_on();
-        self.velocities[idx] = velocity;
-        self.voices[idx].set_hz(hz);
-        self.playing[idx] = true;
     }
 
-    fn note_off(&mut self, hz: f32) {
-        for i in 0..self.voices.len() {
-            if self.playing[i] && !self.releasing[i] && self.voices[i].get_hz() == hz {
-                self.adsr[i].note_off();
-                self.releasing[i] = true;
-                return;
+    pub fn note_off(&mut self, note: u8) {
+        for v in self.voices.iter_mut() {
+            if v.is_active && v.note == note {
+                v.env.enter_state(Release);
             }
         }
     }
 
-    fn playing(&self) -> usize {
-        return self.playing.iter().filter(|x| **x).count();
+    pub fn next(&mut self) -> f64 {
+        /* sum active voices */
+        self.voices.iter_mut()
+            .filter(|v| v.is_active)
+            .map(|v| v.next())
+            .sum()
     }
+}
 
-    fn max_voices(&self) -> usize {
-        self.voices.len()
-    }
+pub struct Synth {
+    voices: Voices
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut sum = 0.0;
-        for idx in 0..self.voices.len() {
-            if self.playing[idx] {
-                let note = self.voices[idx].next().unwrap();
-                let vel = self.velocities[idx] as f32 / 128.0;
-                let env = self.adsr[idx].step(1.0 / self.sample_rate as f32);
-
-
-                sum += note * vel * env;
-
-                if self.adsr[idx].is_silent() {
-                    self.playing[idx] = false;
-                    self.releasing[idx] = false;
-                }
-            }
+impl Synth {
+    pub fn new(sample_rate: f64) -> Self {
+        Synth {
+            voices: Voices::new(sample_rate, 96)
         }
+    }
 
-        return Some(sum);
+    pub fn note_on(&mut self, note: u8, velocity: u8) {
+        self.voices.note_on(note, velocity)
+    }
+
+    pub fn note_off(&mut self, note: u8) {
+        self.voices.note_off(note)
+    }
+
+    pub fn next(&mut self) -> f64 {
+        self.voices.next()
+    }
+
+    pub fn apply_preset(&mut self, preset: &Preset) {
+
     }
 }
