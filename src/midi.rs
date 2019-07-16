@@ -2,6 +2,24 @@ use ghakuf::messages::*;
 use ghakuf::reader::*;
 use std::path;
 
+enum Letter { C, CSharp, D, E, F, G, A, H }
+struct Note(u8);
+
+impl Note {
+    const C4: Note = Note(8);
+
+    fn octave(&self, octave: i8) -> Self {
+        return Note((self.0 as i8 + 12 * octave) as u8)
+    }
+}
+
+
+fn test() {
+    let note = Note::C4;
+    let c5 = note.octave(1);
+    let c3 = note.octave(-1);
+}
+
 pub const MIDI_NOTES: [f32; 128] = [
     8.176, 8.662, 9.177, 9.723, 10.301, 10.913, 11.562, 12.250, 12.978, 13.750, 14.568,
     15.434, 16.352, 17.324, 18.354, 19.445, 20.601, 21.826, 23.124, 24.499, 25.956,
@@ -124,6 +142,26 @@ impl Handler for MidiDecoder {
                     })
                 }
             }
+            MidiEvent::ProgramChange { ch, program } => {
+                println!("channel {} changed program to {}", ch, program);
+                None
+            }
+            MidiEvent::ControlChange { ch, control, data } => {
+                println!("channel {} control change {} = {}", ch, control, data);
+                None
+            }
+            MidiEvent::PolyphonicKeyPressure { ch, note, velocity } => {
+                println!("channel {} aftertouch note {} = {}", ch, note, velocity);
+                None
+            }
+            MidiEvent::PitchBendChange { ch, data } => {
+                println!("channel {} pitch bend {}", ch, data);
+                None
+            }
+            MidiEvent::ChannelPressure { ch, pressure } => {
+                println!("channel {} aftertouch all notes = {}", ch, pressure);
+                None
+            }
             _ => None
         };
         if let Some(t) = e {
@@ -161,15 +199,13 @@ pub fn load_midi(path: &str) -> Song {
         mpqn: [500000; 128],
         time_base: 0,
         current_track_idx: 0,
-        current_track_name: "track #1".to_string(),
+        current_track_name: "track #0".to_string(),
         first_track: true,
     };
     let mut reader = Reader::new(&mut handler, &path).unwrap();
     let _ = reader.read();
 
-    if handler.song.tracks.len() == 0 {
-        handler.track_change();
-    }
+    handler.track_change();
 
     return handler.song;
 }

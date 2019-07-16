@@ -1,4 +1,4 @@
-use crate::osc::{SquareOsc, DetunedSaw, Voice};
+use crate::osc::{SquareOsc, DetunedSaw, Signal};
 use cpal::SampleRate;
 
 #[derive(Copy, Clone)]
@@ -101,7 +101,7 @@ pub struct Synth<T> {
     releasing: [bool; 24],
 }
 
-impl<T> Synth<T> where T: Voice + Copy {
+impl<T> Synth<T> where T: Signal + Copy {
     pub fn new(sample_rate: SampleRate, adsr: ADSR, voice: T) -> Self {
         Synth {
             sample_rate: sample_rate.0,
@@ -114,7 +114,7 @@ impl<T> Synth<T> where T: Voice + Copy {
     }
 }
 
-impl<T> Playable for Synth<T> where T: Voice {
+impl<T> Playable for Synth<T> where T: Signal {
     type Item = f32;
 
     fn note_on(&mut self, hz: f32, velocity: u8) {
@@ -157,6 +157,7 @@ impl<T> Playable for Synth<T> where T: Voice {
                 let note = self.voices[idx].next().unwrap();
                 let vel = self.velocities[idx] as f32 / 128.0;
                 let env = self.adsr[idx].step(1.0 / self.sample_rate as f32);
+
 
                 sum += note * vel * env;
 

@@ -115,34 +115,49 @@ fn main() {
     println!("out_sample_rate={}", format.sample_rate.0);
     println!("out_data_type={:?}", format.data_type);
 
-    let mut song = load_midi("Pac_Man.mid");
+    let mut song = load_midi("PC_Deus_Ex_UNATCO.mid");
 
     let stream = event_loop.build_output_stream(&out, &format).expect("cannot create output stream");
     event_loop.play_stream(stream);
 
-    let piano = Combined::new(SquareOsc::new(format.sample_rate), SawOsc::new(format.sample_rate));
+    let piano = SquareOsc::new(format.sample_rate);
 
     let mut effect: Echo = Echo::new(0.2, 0.3, format.sample_rate);
     let mut synths: Vec<Box<dyn Playable<Item=f32> + Send>> = vec![
-        Box::new(Synth::new(format.sample_rate, ADSR::new(0.00, 0.0, 1.0, 0.0001), SquareOsc::new(format.sample_rate))),
-        Box::new(Synth::new(format.sample_rate, ADSR::new(0.00, 0.0, 1.0, 0.0001), SquareOsc::new(format.sample_rate))),
-        Box::new(Synth::new(format.sample_rate, ADSR::new(0.3, 0.0, 1.0, 0.3), SineOsc::new(format.sample_rate))),
-        Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
-        Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SineOsc::new(format.sample_rate))),
+       //Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
+       //Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
+       //Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
+       //Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
+       //Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
+       //Box::new(Synth::new(format.sample_rate, ADSR::new(0.05, 0.0, 1.0, 0.1), SquareOsc::new(format.sample_rate))),
     ];
 
     let volume = [
-        0.2,
-        0.2,
-        0.1,
-        0.4,
-        0.2
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
     ];
 
     for t in song.tracks.iter() {
         println!("[{}] {} events", t.name, t.events.len());
-        //let synth = Synth::new(format.sample_rate);
-        //synths.push(synth);
+        let synth = Synth::new(
+            format.sample_rate,
+            ADSR::new(0.02, 0.0, 1.0, 0.1),
+            piano
+        );
+        synths.push(Box::new(synth));
     }
 
     let mut max_playing = 0;
@@ -178,7 +193,9 @@ fn main() {
             count += 1.0;
             total_lag += ((now - e.time) as f32).abs();
             match e.kind {
-                EventKind::NoteOn(f, v) => synths[idx as usize].note_on(f, v),
+                EventKind::NoteOn(f, v) => {
+                    synths[idx as usize].note_on(f, v);
+                }
                 EventKind::NoteOff(f) => synths[idx as usize].note_off(f),
             }
         }
@@ -207,7 +224,7 @@ fn main() {
                 for elem in buffer.chunks_mut(2) {
                     let sum = synths.iter_mut().enumerate().fold(0.0, |a, (idx, e)| a + e.next().unwrap() * volume[idx]);
 
-                    let v = effect.next(sum).unwrap() * 0.3;
+                    let v = effect.next(sum).unwrap() * 0.1;
                     elem[0] = v;
                     elem[1] = v;
                 }

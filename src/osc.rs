@@ -2,7 +2,7 @@ use cpal::SampleRate;
 
 const TWO_PI: f32 = std::f32::consts::PI * 2.0;
 
-pub trait Voice {
+pub trait Signal {
     #[inline]
     fn set_hz(&mut self, hz: f32);
 
@@ -30,7 +30,7 @@ impl SineOsc {
     }
 }
 
-impl Voice for SineOsc {
+impl Signal for SineOsc {
     fn set_hz(&mut self, hz: f32) {
         self.hz = hz;
     }
@@ -64,7 +64,7 @@ impl SquareOsc {
     }
 }
 
-impl Voice for SquareOsc {
+impl Signal for SquareOsc {
     fn set_hz(&mut self, hz: f32) {
         self.hz = hz;
     }
@@ -105,7 +105,7 @@ impl SawOsc {
     }
 }
 
-impl Voice for SawOsc {
+impl Signal for SawOsc {
     fn set_hz(&mut self, hz: f32) {
         self.hz = hz;
     }
@@ -149,7 +149,7 @@ impl DetunedSaw {
     }
 }
 
-impl Voice for DetunedSaw {
+impl Signal for DetunedSaw {
     fn set_hz(&mut self, hz: f32) {
         self.hz = hz;
     }
@@ -178,7 +178,7 @@ pub struct Combined<U, V> {
     b: V,
 }
 
-impl<U, V> Combined<U, V> where U: Voice, V: Voice {
+impl<U, V> Combined<U, V> where U: Signal, V: Signal {
     pub fn new(a: U, b: V) -> Self {
         return Combined {
             a,
@@ -187,7 +187,7 @@ impl<U, V> Combined<U, V> where U: Voice, V: Voice {
     }
 }
 
-impl<U, V> Voice for Combined<U, V> where U: Voice, V: Voice {
+impl<U, V> Signal for Combined<U, V> where U: Signal, V: Signal {
     fn set_hz(&mut self, hz: f32) {
         self.a.set_hz(hz);
         self.b.set_hz(hz);
