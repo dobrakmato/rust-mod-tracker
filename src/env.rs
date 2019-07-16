@@ -46,10 +46,10 @@ impl Envelope {
             multiplier: 1.0,
             current_sample_idx: 0,
             next_state_sample_idx: 0,
-            attack: 0.05,
-            decay: 0.3,
+            attack: 0.1,
+            decay: 0.5,
             sustain: 0.7,
-            release: 0.5,
+            release: 1.0,
         };
     }
 

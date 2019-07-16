@@ -1,3 +1,5 @@
+#![feature(clamp)]
+
 use cpal::{EventLoop, default_output_device, StreamData, UnknownTypeOutputBuffer};
 use device_query::{Keycode, DeviceState, DeviceQuery};
 use crate::midi::{load_midi, Kind, note2freq, Player, Event};
