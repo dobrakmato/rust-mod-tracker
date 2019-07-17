@@ -10,7 +10,7 @@ pub struct Filter {
     cutoff: f64,
     cutoff_mod: f64,
     resonance: f64,
-    mode: Mode,
+    pub mode: Mode,
     feedback_amount: f64,
     buf: [f64; 4],
 }
@@ -34,6 +34,16 @@ impl Filter {
         self.calculate_feedback_amount();
     }
 
+    pub fn cutoff(&mut self, cutoff: f64) {
+        self.cutoff = cutoff;
+        self.calculate_feedback_amount();
+    }
+
+    pub fn resonance(&mut self, resonance: f64) {
+        self.resonance = resonance;
+        self.calculate_feedback_amount();
+    }
+
     fn calculate_feedback_amount(&mut self) {
         self.feedback_amount = self.resonance + self.resonance / (1.0 - self.calculate_cutoff());
     }
@@ -48,7 +58,7 @@ impl Filter {
 
         let calculated_cutoff = self.calculate_cutoff();
 
-        self.buf[0] += calculated_cutoff * (input - self.buf[0]);
+        self.buf[0] += calculated_cutoff * (input - self.buf[0] + self.feedback_amount * (self.buf[0] - self.buf[1]));
         self.buf[1] += calculated_cutoff * (self.buf[0] - self.buf[1]);
         self.buf[2] += calculated_cutoff * (self.buf[1] - self.buf[2]);
         self.buf[3] += calculated_cutoff * (self.buf[2] - self.buf[3]);

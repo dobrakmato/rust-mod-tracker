@@ -4,22 +4,6 @@ use crate::midi::note2freq;
 use crate::env::Envelope;
 use crate::filter::{Mode, Filter};
 
-pub struct Preset {
-    waveform: Shape,
-    attack: f64,
-    decay: f64,
-    sustain: f64,
-    release: f64,
-    filter_mode: Mode,
-    filter_cutoff: f64,
-    filter_resonance: f64,
-    filter_attack: f64,
-    filter_decay: f64,
-    filter_sustain: f64,
-    filter_release: f64,
-    filter_evn_amount: f64,
-}
-
 #[derive(Copy, Clone)]
 pub struct Voice {
     pub osc: Osc,
@@ -51,7 +35,7 @@ impl Voice {
 
         self.filter.cutoff_mod(self.filter_env.next() * self.filter_envelope_amount);
 
-        return self.filter.next(self.osc.next() * self.env.next() * self.velocity)
+        return self.filter.next(self.osc.next() * self.env.next() * self.velocity);
     }
 }
 
@@ -100,6 +84,22 @@ pub struct Synth {
     voices: Voices
 }
 
+pub struct Preset {
+    pub waveform: Shape,
+    pub attack: f64,
+    pub decay: f64,
+    pub sustain: f64,
+    pub release: f64,
+    pub filter_mode: Mode,
+    pub filter_cutoff: f64,
+    pub filter_resonance: f64,
+    pub filter_attack: f64,
+    pub filter_decay: f64,
+    pub filter_sustain: f64,
+    pub filter_release: f64,
+    pub filter_evn_amount: f64,
+}
+
 impl Synth {
     pub fn new(sample_rate: f64) -> Self {
         Synth {
@@ -119,5 +119,25 @@ impl Synth {
         self.voices.next()
     }
 
-    pub fn apply_preset(&mut self, preset: &Preset) {}
+    pub fn apply_preset(&mut self, preset: &Preset) {
+        for voice in self.voices.voices.iter_mut() {
+            voice.osc.shape = preset.waveform;
+
+            voice.env.attack(preset.attack);
+            voice.env.decay(preset.decay);
+            voice.env.sustain(preset.sustain);
+            voice.env.release(preset.release);
+
+            voice.filter.mode = preset.filter_mode;
+            voice.filter.cutoff(preset.filter_cutoff);
+            voice.filter.resonance(preset.filter_resonance);
+
+            voice.filter_env.attack(preset.filter_attack);
+            voice.filter_env.decay(preset.filter_decay);
+            voice.filter_env.sustain(preset.filter_sustain);
+            voice.filter_env.release(preset.filter_release);
+
+            voice.filter_envelope_amount = preset.filter_evn_amount;
+        }
+    }
 }

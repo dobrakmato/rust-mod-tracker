@@ -5,12 +5,14 @@ use std::path::Path;
 use ghakuf::formats::Format;
 use std::slice::Iter;
 use std::iter::Peekable;
+use crate::synth::{Preset, Synth};
+use crate::presets::{PIANO, ORGAN, GUITAR, BASS, STRINGS, GENERIC};
 
 pub fn note2freq(note: Note) -> f64 {
     return 440.0 * 2.0f64.powf((note as f64 - 69.0) / 12.0);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum GMFamily {
     Piano,
     ChromaticPercussion,
@@ -30,7 +32,7 @@ pub enum GMFamily {
     SoundEffects,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct GMInstrument {
     family: GMFamily,
     program_number: u8,
@@ -59,6 +61,22 @@ impl GMInstrument {
                 120...127 => GMFamily::SoundEffects,
                 _ => panic!("invalid program number {}", program_number)
             },
+        }
+    }
+
+    #[inline]
+    pub fn program_number(&self) -> u8 {
+        return self.program_number;
+    }
+
+    fn preset(&self) -> Preset {
+        match self.family {
+            GMFamily::Piano => PIANO,
+            GMFamily::Organ => ORGAN,
+            GMFamily::Guitar => GUITAR,
+            GMFamily::Bass => BASS,
+            GMFamily::Strings => STRINGS,
+            _ => GENERIC
         }
     }
 }
@@ -103,7 +121,10 @@ pub enum Kind {
         ch: Channel,
         note: Note,
     },
-    Instrument(GMInstrument),
+    Instrument {
+        ch: Channel,
+        instrument: GMInstrument,
+    },
 }
 
 #[derive(Debug)]
@@ -201,7 +222,10 @@ impl Handler for MidiReader {
             MidiEvent::ProgramChange { ch, program } => {
                 track.events.push(Event {
                     time: self.midi.total_time,
-                    kind: Kind::Instrument(GMInstrument::new(*program)),
+                    kind: Kind::Instrument {
+                        ch: *ch,
+                        instrument: GMInstrument::new(*program),
+                    },
                 })
             }
             MidiEvent::ControlChange { ch, control, data } => {}
@@ -260,6 +284,55 @@ impl<'a> Player<'a> {
         }
 
         return result;
+    }
+}
+
+pub struct MidiChannel {
+    synth: Synth,
+}
+
+impl MidiChannel {
+    pub fn new(sample_rate: f64) -> Self {
+        MidiChannel {
+            synth: Synth::new(sample_rate),
+        }
+    }
+
+    pub fn next(&mut self) -> f64 {
+        self.synth.next()
+    }
+}
+
+
+pub struct MidiPlayback {
+    channels: Vec<MidiChannel>
+}
+
+impl MidiPlayback {
+    pub fn new(sample_rate: f64) -> Self {
+        MidiPlayback {
+            channels: vec![0; 16].into_iter().map(|x| MidiChannel::new(sample_rate)).collect()
+        }
+    }
+
+    pub fn note_on(&mut self, ch: Channel, note: Note, velocity: Velocity) {
+        self.channels[ch as usize].synth.note_on(note, velocity)
+    }
+
+    pub fn note_off(&mut self, ch: Channel, note: Note) {
+        self.channels[ch as usize].synth.note_off(note)
+    }
+
+    pub fn set_instrument(&mut self, ch: Channel, instrument: GMInstrument) {
+        self.channels[ch as usize].synth.apply_preset(&instrument.preset())
+    }
+
+    pub fn next(&mut self) -> f64 {
+        self.channels.iter_mut()
+            .enumerate()
+            .filter(|(i, x)| *i != 9)
+            .map(|(i, x)| x.next())
+            .sum()
     }
 }
 

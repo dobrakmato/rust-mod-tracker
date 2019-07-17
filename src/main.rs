@@ -2,18 +2,20 @@
 
 use cpal::{EventLoop, default_output_device, StreamData, UnknownTypeOutputBuffer};
 use device_query::{Keycode, DeviceState, DeviceQuery};
-use crate::midi::{load_midi, Kind, note2freq, Player, Event};
+use crate::midi::{load_midi, Kind, note2freq, Player, Event, MidiPlayback};
 use std::time::Instant;
 use std::cmp::max;
 use std::io;
 use std::io::Write;
 use core::borrow::Borrow;
-use crate::osc::Osc;
+use crate::osc::{Osc, Shape};
 use std::process::exit;
 use std::fs::File;
 use std::path::Path;
 use std::ffi::OsStr;
-use crate::synth::Synth;
+use crate::synth::{Synth, Preset};
+use crate::filter::Mode;
+use crate::presets::{ORGAN, GUITAR, BASS, STRINGS};
 
 
 mod osc;
@@ -24,6 +26,7 @@ mod midi;
 mod effects;
 mod env;
 mod synth;
+mod presets;
 
 
 fn main() {
@@ -35,7 +38,7 @@ fn main() {
     println!("out_sample_rate={}", format.sample_rate.0);
     println!("out_data_type={:?}", format.data_type);
 
-    let mut synth = Synth::new(format.sample_rate.0 as f64);
+    let mut playback = MidiPlayback::new(format.sample_rate.0 as f64);
 
     //for x in std::fs::read_dir(".").unwrap() {
     //    let x = x.unwrap().path();
@@ -44,7 +47,7 @@ fn main() {
     //    }
     //}
 
-    let mut midi = load_midi(Path::new("tet.mid"));
+    let mut midi = load_midi(Path::new("jump.mid"));
     let mut player = Player::new(&midi);
     // println!("{:#?}", midi);
 
@@ -62,14 +65,17 @@ fn main() {
         for event in player.get_events(now as f64) {
             match event.kind {
                 Kind::NoteOn { ch, note, velocity } => {
-                    // println!("note_on {} {}", note, velocity);
-                    synth.note_on(note, velocity)
+                    //println!("note_on {} {}", note, velocity);
+                    playback.note_on(ch, note, velocity)
                 }
                 Kind::NoteOff { ch, note } => {
-                    // println!("note_off {}", note);
-                    synth.note_off(note)
+                    //println!("note_off {}", note);
+                    playback.note_off(ch, note)
                 }
-                _ => {}
+                Kind::Instrument { ch, instrument } => {
+                    println!("instrument ch={} p={}", ch, instrument.program_number());
+                    playback.set_instrument(ch, instrument)
+                }
             }
         }
 
@@ -77,7 +83,7 @@ fn main() {
         match _stream_data {
             StreamData::Output { buffer: UnknownTypeOutputBuffer::F32(mut buffer) } => {
                 for elem in buffer.chunks_mut(2) {
-                    let v = synth.next();
+                    let v = playback.next();
 
                     /* exporting file */
                     //export.push(v as f32);

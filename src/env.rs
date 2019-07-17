@@ -29,10 +29,10 @@ pub struct Envelope {
     multiplier: f64,
     current_sample_idx: u64,
     next_state_sample_idx: u64,
-    pub attack: f64,
-    pub decay: f64,
-    pub release: f64,
-    pub sustain: f64,
+    attack: f64,
+    decay: f64,
+    release: f64,
+    sustain: f64,
 }
 
 const MINIMUM_LEVEL: f64 = 0.001;
@@ -56,6 +56,60 @@ impl Envelope {
     #[inline]
     pub fn state(&self) -> EnvelopeState {
         self.state
+    }
+
+    #[inline]
+    pub fn attack(&mut self, attack: f64) {
+        self.attack = attack;
+
+        if self.state == Attack {
+            let f = self.current_sample_idx as f64 / self.next_state_sample_idx as f64;
+            let rem = 1.0 - f;
+            let samples_until_next_state = rem * self.attack * self.sample_rate;
+            self.next_state_sample_idx = self.current_sample_idx + samples_until_next_state as u64;
+            self.calculate_multiplier(self.current_level,
+                                      1.0,
+                                      samples_until_next_state as u64);
+        }
+    }
+
+    #[inline]
+    pub fn decay(&mut self, decay: f64) {
+        self.decay = decay;
+
+        if self.state == Decay {
+            let f = self.current_sample_idx as f64 / self.next_state_sample_idx as f64;
+            let rem = 1.0 - f;
+            let samples_until_next_state = rem * self.decay * self.sample_rate;
+            self.next_state_sample_idx = self.current_sample_idx + samples_until_next_state as u64;
+            self.calculate_multiplier(self.current_level,
+                                      self.sustain.max(MINIMUM_LEVEL),
+                                      samples_until_next_state as u64);
+        }
+    }
+
+    #[inline]
+    pub fn sustain(&mut self, sustain: f64) {
+        self.sustain = sustain;
+
+        if self.state == Sustain {
+            self.current_level = sustain;
+        }
+    }
+
+    #[inline]
+    pub fn release(&mut self, release: f64) {
+        self.release = release;
+
+        if self.state == Release {
+            let f = self.current_sample_idx as f64 / self.next_state_sample_idx as f64;
+            let rem = 1.0 - f;
+            let samples_until_next_state = rem * self.release * self.sample_rate;
+            self.next_state_sample_idx = self.current_sample_idx + samples_until_next_state as u64;
+            self.calculate_multiplier(self.current_level,
+                                      MINIMUM_LEVEL,
+                                      samples_until_next_state as u64);
+        }
     }
 
     pub fn next(&mut self) -> f64 {
