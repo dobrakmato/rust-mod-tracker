@@ -53,6 +53,14 @@ impl Envelope {
         };
     }
 
+    pub fn reset(&mut self) {
+        self.state = Off;
+        self.current_level = MINIMUM_LEVEL;
+        self.multiplier = 1.0;
+        self.current_sample_idx = 0;
+        self.next_state_sample_idx = 0;
+    }
+
     #[inline]
     pub fn state(&self) -> EnvelopeState {
         self.state

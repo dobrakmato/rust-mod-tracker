@@ -15,7 +15,6 @@ use std::path::Path;
 use std::ffi::OsStr;
 use crate::synth::{Synth, Preset};
 use crate::filter::Mode;
-use crate::presets::{ORGAN, GUITAR, BASS, STRINGS};
 
 #[macro_use]
 extern crate rand_derive;
@@ -28,7 +27,6 @@ mod midi;
 mod effects;
 mod env;
 mod synth;
-mod presets;
 
 
 fn main() {

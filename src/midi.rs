@@ -6,10 +6,9 @@ use ghakuf::formats::Format;
 use std::slice::Iter;
 use std::iter::Peekable;
 use crate::synth::{Preset, Synth};
-use crate::presets::{PIANO, ORGAN, GUITAR, BASS, STRINGS, GENERIC};
 
-pub fn note2freq(note: Note) -> f64 {
-    return 440.0 * 2.0f64.powf((note as f64 - 69.0) / 12.0);
+pub fn note2freq(note: f64) -> f64 {
+    return 440.0 * 2.0f64.powf((note - 69.0) / 12.0);
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -67,17 +66,6 @@ impl GMInstrument {
     #[inline]
     pub fn program_number(&self) -> u8 {
         return self.program_number;
-    }
-
-    fn preset(&self) -> Preset {
-        match self.family {
-            GMFamily::Piano => PIANO,
-            GMFamily::Organ => ORGAN,
-            GMFamily::Guitar => GUITAR,
-            GMFamily::Bass => BASS,
-            GMFamily::Strings => STRINGS,
-            _ => GENERIC
-        }
     }
 }
 

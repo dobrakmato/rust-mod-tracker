@@ -29,6 +29,10 @@ impl Filter {
         filter
     }
 
+    pub fn reset(&mut self) {
+        self.buf = [0.0; 4]
+    }
+
     pub fn cutoff_mod(&mut self, cutoff_mod: f64) {
         self.cutoff_mod = cutoff_mod;
         self.calculate_feedback_amount();
