@@ -3,6 +3,7 @@ use crate::osc::{Osc, Shape};
 use crate::midi::note2freq;
 use crate::env::Envelope;
 use crate::filter::{Mode, Filter};
+use rand::Rng;
 
 #[derive(Copy, Clone)]
 pub struct Voice {
@@ -33,7 +34,9 @@ impl Voice {
     pub fn next(&mut self) -> f64 {
         if self.env.state() == Off { self.is_active = false; }
 
-        self.filter.cutoff_mod(self.filter_env.next() * self.filter_envelope_amount);
+        let a = self.filter_env.next();
+
+        self.filter.cutoff_mod(a * self.filter_envelope_amount);
 
         return self.filter.next(self.osc.next() * self.env.next() * self.velocity);
     }
@@ -100,10 +103,34 @@ pub struct Preset {
     pub filter_evn_amount: f64,
 }
 
+impl Preset {
+    pub(crate) fn random() -> Self {
+        let mut rng = rand::thread_rng();
+
+        let release = rng.gen_range(0.05, 2.0);
+
+        Preset {
+            waveform: rng.gen(),
+            attack: rng.gen_range(0.01, 0.4),
+            decay: rng.gen_range(0.3, 0.7),
+            sustain: rng.gen_range(0.2, 0.8),
+            release,
+            filter_mode: rng.gen(),
+            filter_cutoff: rng.gen_range(0.01, 0.99),
+            filter_resonance: rng.gen_range(0.01, 0.99),
+            filter_attack: rng.gen_range(0.01, 0.4),
+            filter_decay: rng.gen_range(0.01, 0.7),
+            filter_sustain: rng.gen_range(0.2, 0.8),
+            filter_release: rng.gen_range(0.05, release),
+            filter_evn_amount: rng.gen_range(-0.5, 0.5),
+        }
+    }
+}
+
 impl Synth {
     pub fn new(sample_rate: f64) -> Self {
         Synth {
-            voices: Voices::new(sample_rate, 96)
+            voices: Voices::new(sample_rate, 32)
         }
     }
 
@@ -117,6 +144,15 @@ impl Synth {
 
     pub fn next(&mut self) -> f64 {
         self.voices.next()
+    }
+
+    pub fn voices(&self) -> (usize, usize) {
+        let mut available = self.voices.voices.len();
+        let mut used = self.voices.voices.iter()
+            .filter(|x| x.is_active)
+            .count();
+
+        return (available, used);
     }
 
     pub fn apply_preset(&mut self, preset: &Preset) {

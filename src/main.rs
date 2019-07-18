@@ -17,6 +17,8 @@ use crate::synth::{Synth, Preset};
 use crate::filter::Mode;
 use crate::presets::{ORGAN, GUITAR, BASS, STRINGS};
 
+#[macro_use]
+extern crate rand_derive;
 
 mod osc;
 mod sampler;
@@ -47,7 +49,7 @@ fn main() {
     //    }
     //}
 
-    let mut midi = load_midi(Path::new("jump.mid"));
+    let mut midi = load_midi(Path::new("Pac_man.mid"));
     let mut player = Player::new(&midi);
     // println!("{:#?}", midi);
 
@@ -57,7 +59,8 @@ fn main() {
     event_loop.play_stream(stream);
 
     let mut export: Vec<f32> = vec![];
-    let start = Instant::now();
+    let mut start = Instant::now();
+    let mut frames = 0;
 
     event_loop.run(|_stream_id, _stream_data| {
         /* playback */
@@ -73,11 +76,25 @@ fn main() {
                     playback.note_off(ch, note)
                 }
                 Kind::Instrument { ch, instrument } => {
-                    println!("instrument ch={} p={}", ch, instrument.program_number());
+                    //println!("instrument ch={} p={}", ch, instrument.program_number());
                     playback.set_instrument(ch, instrument)
                 }
             }
         }
+
+        if start.elapsed().as_secs() >= 6 {
+            println!("reset");
+            start = Instant::now();
+            player = Player::new(&midi);
+            playback.random_presets();
+        }
+
+        if frames % 100 == 0 {
+            let (a, b) = playback.voices();
+            println!("vo {}/{}", b, a);
+        }
+
+        frames += 1;
 
         /* generate data */
         match _stream_data {

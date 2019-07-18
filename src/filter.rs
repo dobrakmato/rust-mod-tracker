@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Rand)]
 pub enum Mode {
     Lowpass,
     Highpass,
@@ -54,8 +54,6 @@ impl Filter {
     }
 
     pub fn next(&mut self, input: f64) -> f64 {
-        if input == 0.0 { return input; };
-
         let calculated_cutoff = self.calculate_cutoff();
 
         self.buf[0] += calculated_cutoff * (input - self.buf[0] + self.feedback_amount * (self.buf[0] - self.buf[1]));

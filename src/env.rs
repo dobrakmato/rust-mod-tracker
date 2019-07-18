@@ -1,6 +1,6 @@
 use crate::env::EnvelopeState::{Attack, Sustain, Off, Decay, Release};
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Copy, Clone)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum EnvelopeState {
     Attack,
     Decay,
@@ -63,7 +63,7 @@ impl Envelope {
         self.attack = attack;
 
         if self.state == Attack {
-            let f = self.current_sample_idx as f64 / self.next_state_sample_idx as f64;
+            let f = self.current_sample_idx as f64 / self.next_state_sample_idx.max(1) as f64;
             let rem = 1.0 - f;
             let samples_until_next_state = rem * self.attack * self.sample_rate;
             self.next_state_sample_idx = self.current_sample_idx + samples_until_next_state as u64;
@@ -78,7 +78,7 @@ impl Envelope {
         self.decay = decay;
 
         if self.state == Decay {
-            let f = self.current_sample_idx as f64 / self.next_state_sample_idx as f64;
+            let f = self.current_sample_idx as f64 / self.next_state_sample_idx.max(1) as f64;
             let rem = 1.0 - f;
             let samples_until_next_state = rem * self.decay * self.sample_rate;
             self.next_state_sample_idx = self.current_sample_idx + samples_until_next_state as u64;
@@ -102,7 +102,7 @@ impl Envelope {
         self.release = release;
 
         if self.state == Release {
-            let f = self.current_sample_idx as f64 / self.next_state_sample_idx as f64;
+            let f = self.current_sample_idx as f64 / self.next_state_sample_idx.max(1) as f64;
             let rem = 1.0 - f;
             let samples_until_next_state = rem * self.release * self.sample_rate;
             self.next_state_sample_idx = self.current_sample_idx + samples_until_next_state as u64;
@@ -129,7 +129,7 @@ impl Envelope {
     }
 
     fn calculate_multiplier(&mut self, start_level: f64, end_level: f64, length_samples: u64) {
-        self.multiplier = 1.0 + (end_level.ln() - start_level.ln()) / (length_samples as f64);
+        self.multiplier = 1.0 + ((0.00001 + end_level).ln() - (0.00001 + start_level).ln()) / (length_samples as f64);
     }
 
     pub fn enter_state(&mut self, state: EnvelopeState) {

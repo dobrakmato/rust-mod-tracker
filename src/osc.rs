@@ -1,9 +1,8 @@
-
 use std::f64::consts::PI;
 
 const TWO_PI: f64 = std::f64::consts::PI * 2.0;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Rand)]
 pub enum Shape { Sine, Saw, Square, Triangle }
 
 #[derive(Copy, Clone)]

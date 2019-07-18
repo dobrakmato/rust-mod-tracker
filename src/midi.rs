@@ -324,7 +324,20 @@ impl MidiPlayback {
     }
 
     pub fn set_instrument(&mut self, ch: Channel, instrument: GMInstrument) {
-        self.channels[ch as usize].synth.apply_preset(&instrument.preset())
+        self.channels[ch as usize].synth.apply_preset(&Preset::random())
+    }
+
+    pub fn voices(&self) -> (usize, usize) {
+        let mut available = 0;
+        let mut used = 0;
+
+        for i in 0..16 {
+            let (a, u) = self.channels[i].synth.voices();
+            available += a;
+            used += u;
+        }
+
+        return (available, used);
     }
 
     pub fn next(&mut self) -> f64 {
@@ -333,6 +346,12 @@ impl MidiPlayback {
             .filter(|(i, x)| *i != 9)
             .map(|(i, x)| x.next())
             .sum()
+    }
+
+    pub fn random_presets(&mut self) {
+        for i in 0..16 {
+            self.channels[i].synth.apply_preset(&Preset::random())
+        }
     }
 }
 
