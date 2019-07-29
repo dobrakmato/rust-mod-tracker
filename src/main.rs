@@ -47,7 +47,7 @@ fn main() {
     //    }
     //}
 
-    let mut midi = load_midi(Path::new("Pac_man.mid"));
+    let mut midi = load_midi(Path::new("tet.mid"));
     let mut player = Player::new(&midi);
     // println!("{:#?}", midi);
 
@@ -80,13 +80,6 @@ fn main() {
             }
         }
 
-        if start.elapsed().as_secs() >= 6 {
-            println!("reset");
-            start = Instant::now();
-            player = Player::new(&midi);
-            playback.random_presets();
-        }
-
         if frames % 100 == 0 {
             let (a, b) = playback.voices();
             println!("vo {}/{}", b, a);
@@ -101,8 +94,9 @@ fn main() {
                     let v = playback.next();
 
                     /* exporting file */
-                    //export.push(v as f32);
-                    if export.len() == format.sample_rate.0 as usize {
+                    export.push(v as f32);
+                    if export.len() == 60 * format.sample_rate.0 as usize {
+                        println!("saving...");
                         let mut f = File::create("export.raw").unwrap();
                         for num in export.iter() {
                             let i = num.to_bits();

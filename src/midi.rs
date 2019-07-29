@@ -6,6 +6,8 @@ use ghakuf::formats::Format;
 use std::slice::Iter;
 use std::iter::Peekable;
 use crate::synth::{Preset, Synth};
+use crate::osc::Shape;
+use crate::filter::Mode;
 
 pub fn note2freq(note: f64) -> f64 {
     return 440.0 * 2.0f64.powf((note - 69.0) / 12.0);
@@ -291,15 +293,16 @@ impl MidiChannel {
     }
 }
 
-
 pub struct MidiPlayback {
-    channels: Vec<MidiChannel>
+    channels: Vec<MidiChannel>,
+    preset: Preset,
 }
 
 impl MidiPlayback {
     pub fn new(sample_rate: f64) -> Self {
         MidiPlayback {
-            channels: vec![0; 16].into_iter().map(|x| MidiChannel::new(sample_rate)).collect()
+            channels: vec![0; 16].into_iter().map(|x| MidiChannel::new(sample_rate)).collect(),
+            preset: Preset::random(),
         }
     }
 
@@ -312,7 +315,30 @@ impl MidiPlayback {
     }
 
     pub fn set_instrument(&mut self, ch: Channel, instrument: GMInstrument) {
-        self.channels[ch as usize].synth.apply_preset(&Preset::random())
+        self.channels[ch as usize].synth.apply_preset( &Preset {
+            osc1_waveform: Shape::Square,
+            osc2_waveform: Shape::Square,
+            osc1_pitch_mod: 0.0,
+            osc2_pitch_mod: 0.0,
+            osc1_tuning: -12.0,
+            osc2_tuning: 0.0,
+            osc_mix: 0.5,
+            attack: 0.05,
+            decay: 0.1,
+            sustain: 0.8,
+            release: 2.8,
+            filter_mode: Mode::Lowpass,
+            filter_cutoff: 0.05,
+            filter_resonance: 0.2,
+            filter_attack: 0.03,
+            filter_decay: 0.1,
+            filter_sustain: 0.99,
+            filter_release: 0.6,
+            filter_evn_amount: 0.5,
+            lfo_waveform: Shape::Sine,
+            lfo_frequency: 3.0,
+            lfo_filter_mod_amount: 0.0,
+        })
     }
 
     pub fn voices(&self) -> (usize, usize) {

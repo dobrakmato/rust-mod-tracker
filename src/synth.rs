@@ -156,12 +156,12 @@ impl Preset {
         Preset {
             osc1_waveform: rng.gen(),
             osc2_waveform: rng.gen(),
-            osc1_pitch_mod: rng.gen_range(0.0, 0.3),
-            osc2_pitch_mod: rng.gen_range(0.0, 0.3),
-            osc1_tuning: rng.gen_range(0.0, 0.01),
-            osc2_tuning: rng.gen_range(0.0, 0.01),
+            osc1_pitch_mod: rng.gen_range(0.0, 0.1),
+            osc2_pitch_mod: rng.gen_range(0.0, 0.1),
+            osc1_tuning: rng.gen_range(-12.0, 12.0),
+            osc2_tuning: rng.gen_range(-12.0, 12.0),
             osc_mix: rng.gen_range(0.0, 1.5),
-            attack: rng.gen_range(0.01, 0.1),
+            attack: rng.gen_range(0.01, 0.2),
             decay: rng.gen_range(0.3, 0.7),
             sustain: rng.gen_range(0.2, 0.8),
             release,
@@ -175,7 +175,7 @@ impl Preset {
             filter_evn_amount: rng.gen_range(-0.5, 0.5),
             lfo_waveform: rng.gen(),
             lfo_frequency: (rng.gen_range(0.0, 1000.0) as f64).ln(),
-            lfo_filter_mod_amount: rng.gen_range(0.0, 0.5),
+            lfo_filter_mod_amount: rng.gen_range(0.0, 0.2),
         }
     }
 }
@@ -188,7 +188,7 @@ pub struct Synth {
 impl Synth {
     pub fn new(sample_rate: f64) -> Self {
         Synth {
-            voices: Voices::new(sample_rate, 32)
+            voices: Voices::new(sample_rate, 128)
         }
     }
 
